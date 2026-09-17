@@ -179,29 +179,38 @@ async function createRoom() {
    MULTIPLAYER LOBBY
    ========================================================= */
 
-function showLobby() {
-  async function startLobbyGame() {
-    if (!game.roomCode) {
-      alert('🏴‍☠️ There is no active game room.');
-      return;
+   function showLobby() {
+    async function startLobbyGame() {
+      if (!game.roomCode) {
+        alert('🏴‍☠️ There is no active game room.');
+        return;
+      }
+  
+      if (game.playerId !== game.hostId) {
+        alert('🏴‍☠️ Only the captain can start the game!');
+        return;
+      }
+  
+      const { error } = await supabase
+        .from('rooms')
+        .update({
+          status: 'playing',
+        })
+        .eq('code', game.roomCode)
+        .eq('host_id', game.hostId);
+  
+      if (error) {
+        console.error('Could not start game:', error);
+        alert(`Could not start the game: ${error.message}`);
+        return;
+      }
+  
+      showGameBoard();
     }
-
-    const { error } = await supabase
-      .from('rooms')
-      .update({
-        status: 'playing',
-      })
-      .eq('code', game.roomCode);
-
-    if (error) {
-      console.error('Could not start game:', error);
-      alert(`Could not start the game: ${error.message}`);
-      return;
-    }
-
-    showGameBoard();
-  }
-  app.innerHTML = `
+  
+    const isHost = game.playerId === game.hostId;
+  
+    app.innerHTML = `
       <div class="setup-screen">
         <button class="back-button" id="leave-lobby">
           ← Leave Lobby
@@ -215,103 +224,107 @@ function showLobby() {
   
         <div
           style="
-            margin: 25px auto;
-            padding: 25px;
-            max-width: 500px;
+            padding: 20px;
+            margin-bottom: 20px;
             background: #fff0bd;
-            border: 4px solid #f6b928;
-            border-radius: 22px;
-            box-shadow: 0 5px 0 #c98512;
+            border: 3px solid #f6b928;
+            border-radius: 16px;
             text-align: center;
           "
         >
-          <div
-            style="
-              font-size: 18px;
-              font-weight: 900;
-              color: #70482d;
-              margin-bottom: 8px;
-            "
-          >
-            🔑 ROOM CODE
+          <div style="font-size: 14px; font-weight: bold;">
+            ROOM CODE
           </div>
   
           <div
             style="
-              font-size: 42px;
+              font-size: 36px;
+              font-weight: bold;
               letter-spacing: 6px;
-              font-weight: 900;
               color: #183b52;
-              margin-bottom: 15px;
+              margin-top: 5px;
             "
           >
-            ${game.roomCode}
+            ${escapeHtml(game.roomCode)}
           </div>
-  
-          <p
-            style="
-              margin: 0;
-              color: #70482d;
-            "
-          >
-            Share this code with your crew!
-          </p>
         </div>
   
         <div class="setup-section">
           <h2>👥 Your Crew</h2>
   
           <div
-  id="lobby-player-list"
-  style="
-    padding: 20px;
-    text-align: center;
-  "
->
-  <div
-    style="
-      padding: 20px;
-      background: #fff9e8;
-      border-radius: 16px;
-      border: 2px solid #f6b928;
-    "
-  >
-    🏴‍☠️ Loading your crew...
-  </div>
-</div>
-        </div>
-  
-        <div class="setup-actions">
-          <button
-            id="start-game"
-            class="primary-button"
+            id="lobby-player-list"
+            style="
+              padding: 20px;
+              text-align: center;
+            "
           >
-            ⚓ Start Game
-          </button>
+            <div
+              style="
+                padding: 20px;
+                background: #fff9e8;
+                border-radius: 16px;
+                border: 2px solid #f6b928;
+              "
+            >
+              🏴‍☠️ Loading your crew...
+            </div>
+          </div>
         </div>
   
-        <p
-          style="
-            text-align: center;
-            margin-top: 12px;
-            color: #70482d;
-            font-size: 14px;
-          "
-        >
-          You are the captain. Only the host can start the game.
-        </p>
+        ${
+          isHost
+            ? `
+              <button id="start-game" class="primary-button">
+                ⚓ Start Game
+              </button>
+  
+              <p
+                style="
+                  text-align: center;
+                  margin-top: 10px;
+                  color: #70482d;
+                  font-weight: bold;
+                "
+              >
+                👑 You are the captain — you can start the game!
+              </p>
+            `
+            : `
+              <div
+                style="
+                  padding: 16px;
+                  margin-top: 10px;
+                  background: #fff9e8;
+                  border: 2px solid #f6b928;
+                  border-radius: 14px;
+                  text-align: center;
+                  color: #70482d;
+                  font-weight: bold;
+                "
+              >
+                🏴‍☠️ Waiting for the captain to start the game...
+              </div>
+            `
+        }
       </div>
     `;
-
-  document.querySelector('#leave-lobby').addEventListener('click', showHome);
-
-  document.querySelector('#start-game').addEventListener('click', async () => {
-    await startLobbyGame();
-  });
-
-  loadLobbyPlayers();
-  setupLobbyRealtime();
-}
+  
+    document
+      .querySelector('#leave-lobby')
+      .addEventListener('click', showHome);
+  
+    const startButton = document.querySelector('#start-game');
+  
+    if (startButton) {
+      startButton.addEventListener('click', async () => {
+        await startLobbyGame();
+      });
+    }
+  
+    loadLobbyPlayers();
+    setupLobbyRealtime();
+  }
 
 async function loadLobbyPlayers() {
   if (!game.roomCode) return;
